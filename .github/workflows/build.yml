@@ -1,0 +1,55 @@
+name: Build CrateGoodExt
+
+on:
+  push:
+    branches: [ main, standalone ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $out = & msbuild CrateGoodExt.sln /p:Configuration=Release /p:Platform=x86 /nologo 2>&1
+          $code = $LASTEXITCODE
+          $out | Out-File -Encoding utf8 build_out.txt
+          $text = $out | ForEach-Object { $_.ToString() }
+          $matches = $text | Where-Object { $_ -match 'error|: error|warning [A-Z]|LNK' }
+          if ($matches) {
+            $matches | Select-Object -First 80 | ForEach-Object { Write-Output ("::error::" + $_.Trim()) }
+          } else {
+            $text | Select-Object -Last 40 | ForEach-Object { Write-Output ("::error::" + $_.Trim()) }
+          }
+          exit $code
+
+      - name: Upload DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrateGoodExt
+          path: output/Release/CrateGoodExt.dll
+
+      - name: Publish DLL to rolling prerelease (public, curl-able)
+        if: success() && github.ref == 'refs/heads/standalone'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: standalone-latest
+          name: standalone-latest
+          prerelease: true
+          files: output/Release/CrateGoodExt.dll
+          fail_on_unmatched_files: true
