@@ -236,8 +236,16 @@ namespace CrateGoodExt
 			SuperWeaponTypeClass* pSWType = SuperWeaponTypeClass::Find(id.c_str());
 			if (!pSWType)
 				continue;
-			if (SuperClass* pSuper = pHouse->FindSuperWeapon(pSWType))
-				pSuper->Grant(true, true, false);
+			// YRpp declares HouseClass::FindSuperWeapon but ships no address for it,
+			// so match against the house's own Supers list here.
+			for (SuperClass* pSuper : pHouse->Supers)
+			{
+				if (pSuper && pSuper->Type == pSWType)
+				{
+					pSuper->Grant(true, true, false);   // one-time, announce, not on-hold
+					break;
+				}
+			}
 		}
 	}
 

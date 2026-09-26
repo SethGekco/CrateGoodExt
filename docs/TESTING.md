@@ -1,7 +1,7 @@
 # CrateGoodExt — Testing
 
 CI only *compiles* the DLL; the hooks' behavior must be checked in-game. This
-covers **M2** (custom weighted **unit** crate goodies).
+covers **M2** (unit goodies) and **M3** (infantry / superweapon / explosion goodies).
 
 ## 1. Load the DLL
 
@@ -19,6 +19,7 @@ first line confirms it's live:
 [CrateGoodExt]
 Unit.VanillaWeight=0      ; 0 = unit crates always use our members (no vanilla unit)
 
+; --- M2: units ---
 [CrateGood.Ext_0]
 Category=Unit
 Weight=10                 ; common: a single Apocalypse
@@ -27,42 +28,66 @@ Unit.Counts=1
 
 [CrateGood.Ext_1]
 Category=Unit
-Weight=5                  ; rarer: a bag of 3 Rhinos + 2 Conscripts
+Weight=5                  ; a bag: 3 Rhinos + 2 Conscripts
 Unit.Types=RHINO
 Unit.Counts=3
 Infantry.Types=E1
 Infantry.Counts=2
+
+; --- M3: infantry-only (no unit) ---
+[CrateGood.Ext_2]
+Category=Unit
+Weight=5                  ; a squad of 5 GIs
+Infantry.Types=E1
+Infantry.Counts=5
+
+; --- M3: superweapon grant (no unit) ---
+[CrateGood.Ext_3]
+Category=Unit
+Weight=2
+SuperWeapons=NukeSpecial  ; one-time nuke for the collector's house
+
+; --- M3: explosion addon (no unit) ---
+[CrateGood.Ext_4]
+Category=Unit
+Weight=2
+Explosion=yes
+Explosion.Damage=800
+Explosion.Warhead=SA      ; omit to default to [General]C4Warhead
 ```
 
 After load, `CrateGoodExt.log` should report the parse:
 
 ```
-[CrateGoodExt] LoadRegistry: 2 Unit member(s), weight sum 15; globals VanillaWeight=0 ...
+[CrateGoodExt] LoadRegistry: 5 Unit member(s), weight sum 24; globals VanillaWeight=0 ...
 ```
 
-## 3. Trigger a unit crate
+## 3. Trigger unit crates
 
 The hook fires only when a crate's result is the **Unit** result. To see it often,
 raise the `Unit` share in `[Powerups]`.
 
 > ⚠ If you write a `[Powerups]` section you must list **every** result you want to
 > keep — a partial section zeroes the shares of everything it omits. Otherwise just
-> collect crates until a unit one lands.
+> collect crates until unit ones land.
 
-On collecting a unit crate you should see, in `CrateGoodExt.log`:
+On each unit crate you should see one of these in `CrateGoodExt.log`, and the effect:
 
-```
-[CrateGoodExt] Ext_0 fired: engine makes APOC + 0/0 extra spawned at (x,y).
-```
+| Member | Log line | In-game |
+| --- | --- | --- |
+| Ext_0 / Ext_1 (has units) | `Ext_N fired (unit-handoff): units=… at (x,y)` | vehicle(s) + any infantry appear at the crate |
+| Ext_2 (infantry only) | `Ext_2 fired (self-contained): infantry=1 …` | a squad appears; **no** vehicle, **no** money |
+| Ext_3 (SW only) | `Ext_3 fired (self-contained): sw=1 …` | one-time superweapon added to your sidebar |
+| Ext_4 (explosion) | `Ext_4 fired (self-contained): explosion=1 …` | a blast at the crate cell |
 
-and the goodie appears at the crate for your house — either the single APOC, or
-the Rhino+Conscript bag (the engine makes the first Rhino, we spawn the other 2
-Rhinos + 2 Conscripts).
+`self-contained` = the vanilla unit was cleanly suppressed (jump to the no-unit
+exit): crate consumed, its result animation plays, no unit and no money.
 
-## v1 scope
+## Scope
 
-- ✅ Unit-bearing members: synced weighted pick → spawn units + infantry bag.
-- ⬜ Infantry-only / SW-only / Explosion-only members: **M3** (need clean vanilla
-  suppression via the verified exit path).
+- ✅ **M2** unit-bearing members: weighted pick → spawn units + infantry bag.
+- ✅ **M3** infantry-only / SW-only / explosion members: fire with clean vanilla
+  suppression. Payloads compose (a member may mix units + infantry + SW + explosion).
+- ⬜ **M4** pickup chaining · **M5** anim-sourced crates.
 - Rarity = `Weight` within the Unit category. `Unit.VanillaWeight` keeps (or, at 0,
   removes) the stock random-unit outcome as an implicit member.
