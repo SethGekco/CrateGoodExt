@@ -33,7 +33,8 @@ Random-pick loop ~`0x482145`–`0x482210`:
 - **`MapClass::PlaceRandomCrate()` @ `0x56BD40`** [D] — thiscall, `this = &MapClass::Instance` (`0x87F7E8`). Places one random tracked crate. Phobos hooks its sampling at `0x56BD8B`. (Not declared in ra2diy YRpp.)
 - **`MapClass::RemoveCrate(cell)` @ `0x56C020`** [D] — thiscall; called at `0x481D97` in CollectCrate before the replacement gate.
 - **Replacement gate (M4 hook @ `0x481D9C`)** [D] — after Remove_Crate: `Session.Type` @ `0xA8B238` (0 = campaign → skip) and `Unsorted::Crates` @ `0xA8B261` (crates enabled?) gate the `call 0x56BD40` at `0x481DB3`. Force-jump target = `0x481DAE`. M4: `Chain.Default=yes` → return `0x481DAE` to force a replacement on every pickup (bypasses both checks). Runs before the effect switch, so it covers every crate result including unit-dropped ones.
-- `MapClass::PlacePowerupCrate(CellStruct, Powerup)` — targeted placement (Phobos `WarheadType SpawnsCrate` uses it); not in ra2diy YRpp. Candidate for M5 (place a specific goodie's crate). Address: TBD.
+- **`MapClass::PlacePowerupCrate(CellStruct, Powerup)` @ `0x56BEC0`** [D] — thiscall, `this = &MapClass::Instance` (`0x87F7E8`); places a crate of a specific `Powerup` result at a cell. Not in ra2diy YRpp — called via a raw thiscall in M5.
+- **Anim-end hook (M5) @ `0x424932`** [D][P] — `AnimClass::AI` end-effects point (MakeInfantry/CreateUnit fire once at anim completion); `AnimClass*` in ESI. Additive `return 0`: if the AnimType has `SpawnsCrate=yes`, drop a crate at `GetCell()->MapCoords` via PlacePowerupCrate. Phobos also hooks/redirects this (its CreateUnit) — targets Antares.
 
 ## Outer-draw data (NOT modified — outer draw stays vanilla per design) — [Y] `Powerups.h`
 

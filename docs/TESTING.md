@@ -83,11 +83,32 @@ On each unit crate you should see one of these in `CrateGoodExt.log`, and the ef
 `self-contained` = the vanilla unit was cleanly suppressed (jump to the no-unit
 exit): crate consumed, its result animation plays, no unit and no money.
 
+## M4 — perpetual crates (chaining)
+
+```ini
+[CrateGoodExt]
+Chain.Default=yes         ; force a replacement crate on EVERY pickup (all modes,
+                          ; incl. unit-dropped crates), bypassing the vanilla gate
+```
+With this on, collecting any crate immediately places a fresh random crate — crates
+never deplete. Off (default) = vanilla.
+
+## M5 — crates from animations
+
+```ini
+[SOMEANIM]                ; any AnimType (its rules section)
+SpawnsCrate=yes           ; drop a crate on this anim's cell when it ends
+SpawnsCrate.Powerup=Money ; result: Money/Unit/Cloak/Firepower/Armor/Speed/Veteran/
+                          ; Explosion/Napalm/Darkness/Reveal/ICBM/Tiberium (default Money)
+```
+Log on anim end: `anim SOMEANIM ended -> crate (powerup=0) at (x,y) ok=1`.
+> Targets Antares. If Phobos is also loaded (it hooks the same anim-end point and
+> redirects), the anim-crate drop may not fire.
+
 ## Scope
 
-- ✅ **M2** unit-bearing members: weighted pick → spawn units + infantry bag.
-- ✅ **M3** infantry-only / SW-only / explosion members: fire with clean vanilla
-  suppression. Payloads compose (a member may mix units + infantry + SW + explosion).
-- ⬜ **M4** pickup chaining · **M5** anim-sourced crates.
+- ✅ **M2** units · **M3** infantry/SW/explosion (+ clean suppression) · **M4**
+  perpetual crates · **M5** anim-sourced crates — all built & CI-green; **behavior
+  pending in-game test**.
 - Rarity = `Weight` within the Unit category. `Unit.VanillaWeight` keeps (or, at 0,
   removes) the stock random-unit outcome as an implicit member.
