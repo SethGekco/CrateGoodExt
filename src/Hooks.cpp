@@ -1,9 +1,10 @@
-// Syringe hooks for CrateGoodExt. Feature logic lives in CrateGood.cpp.
+// Syringe hooks for CrateGoodExt. Feature logic lives in CrateGood.cpp / Anim.cpp.
 //
 // Addresses here are also hooked by Phobos/Antares; Syringe chains multiple hooks
 // per address and we keep no shared framework state, so this coexists cleanly
 // (the same model GiftBoxHost relies on).
 #include "CrateGood.h"
+#include "Anim.h"
 
 #include <Helpers/Macro.h>   // DEFINE_HOOK, GET, GET_BASE, R
 #include <CCINIClass.h>
@@ -11,6 +12,7 @@
 #include <CellClass.h>
 #include <FootClass.h>
 #include <HouseClass.h>
+#include <AnimClass.h>
 
 // After all TypeData (unit/infantry/SW types) is loaded, (re)parse our
 // [CrateGood.Ext_N] registry from the rules INI. Verified against Phobos source:
@@ -71,4 +73,16 @@ DEFINE_HOOK(0x481D9C, CrateGoodExt_CollectCrate_ForceReplacement, 0x5)
 		return ForcePlaceRandomCrate;
 
 	return 0;   // Chain.Default=no -> vanilla gated behavior
+}
+
+// AnimClass::AI end-effects point (where MakeInfantry/CreateUnit fire once as an anim
+// completes). AnimClass* in ESI. Additive (return 0): if the anim's type has
+// SpawnsCrate=yes, drop a crate on its cell, then let the vanilla end-effects run.
+// NOTE: Phobos also hooks 0x424932 (its CreateUnit) and redirects control flow; with
+// Phobos ALSO loaded, hook order may skip ours. Targets Antares. See docs/ADDRESSES.md.
+DEFINE_HOOK(0x424932, CrateGoodExt_AnimClass_AI_SpawnsCrate, 0x6)
+{
+	GET(AnimClass* const, pThis, ESI);
+	CrateGoodExt::Anim::OnAnimEnd(pThis);
+	return 0;
 }
