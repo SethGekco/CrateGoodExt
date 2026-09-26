@@ -2,6 +2,8 @@
 #include "Ini.h"
 #include "Log.h"
 
+#include <TechnoClass.h>          // complete types required by YRpp generic_cast
+#include <FootClass.h>            // traits pulled in via AnimClass.h inlines
 #include <AnimClass.h>
 #include <AnimTypeClass.h>
 #include <CellClass.h>
