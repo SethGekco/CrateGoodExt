@@ -55,3 +55,20 @@ DEFINE_HOOK(0x4821FA, CrateGoodExt_CollectCrate_UnitResult, 0x6)
 
 	return SuppressToNoUnitExit;   // self-contained payload -> suppress the vanilla unit
 }
+
+// CellClass::CollectCrate replacement gate. Right after Remove_Crate (0x481D97),
+// vanilla places a replacement crate only when NOT a campaign (Session.Type @
+// 0xA8B238 != 0) AND crates are enabled (Unsorted::Crates @ 0xA8B261). With
+// [CrateGoodExt]Chain.Default=yes we force the replacement on EVERY pickup (all
+// modes, including unit-dropped crates) by jumping straight to the PlaceRandomCrate
+// call site, bypassing both gate checks. This point runs before the effect switch,
+// so it fires for every crate result. Verified via objdump; see docs/ADDRESSES.md.
+DEFINE_HOOK(0x481D9C, CrateGoodExt_CollectCrate_ForceReplacement, 0x5)
+{
+	enum { ForcePlaceRandomCrate = 0x481DAE };   // mov ecx,&Map; call 0x56BD40
+
+	if (CrateGoodExt::GetGlobals().chainDefault)
+		return ForcePlaceRandomCrate;
+
+	return 0;   // Chain.Default=no -> vanilla gated behavior
+}

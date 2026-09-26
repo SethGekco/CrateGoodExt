@@ -30,8 +30,10 @@ Random-pick loop ~`0x482145`–`0x482210`:
 
 ## Placement primitives (M4 chaining / M5 anim)
 
-- Replacement on pickup [O] `cell.cpp:3606-3611`: `Map.Remove_Crate(...)` then `Map.Place_Random_Crate()` (gated on MP + `IsMPCrates` + Goodies option).
-- `MapClass::PlacePowerupCrate(CellStruct, Powerup)` — targeted placement (Phobos `WarheadType SpawnsCrate` uses it). Address: **TBD from YRpp `MapClass.h`**.
+- **`MapClass::PlaceRandomCrate()` @ `0x56BD40`** [D] — thiscall, `this = &MapClass::Instance` (`0x87F7E8`). Places one random tracked crate. Phobos hooks its sampling at `0x56BD8B`. (Not declared in ra2diy YRpp.)
+- **`MapClass::RemoveCrate(cell)` @ `0x56C020`** [D] — thiscall; called at `0x481D97` in CollectCrate before the replacement gate.
+- **Replacement gate (M4 hook @ `0x481D9C`)** [D] — after Remove_Crate: `Session.Type` @ `0xA8B238` (0 = campaign → skip) and `Unsorted::Crates` @ `0xA8B261` (crates enabled?) gate the `call 0x56BD40` at `0x481DB3`. Force-jump target = `0x481DAE`. M4: `Chain.Default=yes` → return `0x481DAE` to force a replacement on every pickup (bypasses both checks). Runs before the effect switch, so it covers every crate result including unit-dropped ones.
+- `MapClass::PlacePowerupCrate(CellStruct, Powerup)` — targeted placement (Phobos `WarheadType SpawnsCrate` uses it); not in ra2diy YRpp. Candidate for M5 (place a specific goodie's crate). Address: TBD.
 
 ## Outer-draw data (NOT modified — outer draw stays vanilla per design) — [Y] `Powerups.h`
 
