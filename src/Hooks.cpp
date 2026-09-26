@@ -22,29 +22,36 @@ DEFINE_HOOK(0x679CAF, CrateGoodExt_RulesData_LoadAfterTypeData, 0x5)
 	return 0;
 }
 
-// CellClass::CollectCrate, the CRATE_UNIT result. By 0x4821FA the engine has its
-// chosen unit type in EDI (reached by BOTH the UnitCrateType path — jne 0x4821FA —
-// and the random-CrateGoodie loop). this(CellClass*) is held in ESI; the collector
-// (FootClass*) is arg1 at [ebp+0x8]. Verified via objdump; see docs/ADDRESSES.md.
+// CellClass::CollectCrate, the CRATE_UNIT result. By 0x4821FA the chosen unit type
+// is in EDI (both the UnitCrateType path — jne 0x4821FA — and the random-CrateGoodie
+// loop reach it). this(CellClass*) is held in ESI; the collector (FootClass*) is
+// arg1 at [ebp+0x8]. Verified via objdump; see docs/ADDRESSES.md.
 //
-// If a Unit-category member wins the synced inner draw, we override EDI with our
-// first unit (so the engine's own create/place/return-false runs unchanged) and
-// self-spawn the rest of the bag. Members with no unit fall through to stock (M3
-// will handle infantry/SW/addon-only members with clean vanilla suppression).
+// When a Unit-category member wins the synced inner draw we apply its payload:
+//   - unit-bearing member -> override EDI with our first unit; the engine's own
+//     create/place/return-false runs unchanged, and we self-spawn the rest.
+//   - member with no unit  -> fully applied here, then jump to 0x4832F5, the engine's
+//     "no unit -> play the crate anim -> return true" exit. No vanilla unit is made
+//     and no money is paid (the crate overlay was already removed earlier in the fn).
 DEFINE_HOOK(0x4821FA, CrateGoodExt_CollectCrate_UnitResult, 0x6)
 {
+	enum { SuppressToNoUnitExit = 0x4832F5 };
+
 	GET(CellClass*, pCell, ESI);
 	GET_BASE(FootClass*, pCollector, 0x8);
 	if (!pCollector)
 		return 0;
 
 	const CrateGoodExt::MemberConfig* pMember = CrateGoodExt::PickMember(CrateGoodExt::Category::Unit);
-	if (!pMember || !pMember->HasUnits())
-		return 0;   // v1: only unit-bearing members participate
+	if (!pMember)
+		return 0;   // no member won the inner draw -> stock behavior
 
 	UnitTypeClass* pFirst = nullptr;
-	if (CrateGoodExt::ApplyUnitMember(*pMember, pCell, pCollector->Owner, &pFirst) && pFirst)
+	if (CrateGoodExt::ApplyMember(*pMember, pCell, pCollector->Owner, &pFirst))
+	{
 		R->EDI(pFirst);   // engine's own creation now makes our first unit
+		return 0;
+	}
 
-	return 0;
+	return SuppressToNoUnitExit;   // self-contained payload -> suppress the vanilla unit
 }

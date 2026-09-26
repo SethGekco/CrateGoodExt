@@ -18,7 +18,7 @@
 //   SuperWeapons=NUKESPECIAL  ; payload: grant one-time SWs to the collector
 //   Explosion=no              ; addon payload (independent of the above)
 //   Explosion.Damage=500
-//   Explosion.Warhead=HE
+//   Explosion.Warhead=HE      ; defaults to [General]C4Warhead if unset
 //
 //   [CrateGoodExt]            ; global tuning
 //   Unit.VanillaWeight=0      ; weight of the stock unit pick as an implicit member
@@ -95,11 +95,16 @@ namespace CrateGoodExt
 	// only (ScenarioClass random) — never rand() — or multiplayer desyncs.
 	const MemberConfig* PickMember(Category cat);
 
-	// M2: apply a Unit-category member that has >=1 unit. Resolves the member's
-	// first unit type into *outFirstUnit (hand to the engine's own single-unit
-	// creation via EDI) and spawns the REST of the bag (remaining units + all
-	// infantry) at pCrateCell for pHouse on the synced RNG. Returns false (and
-	// *outFirstUnit=nullptr) when the first unit type can't be resolved.
-	bool ApplyUnitMember(const MemberConfig& m, CellClass* pCrateCell,
+	// Apply a winning member's full payload at the crate cell for pHouse (units +
+	// infantry + superweapons + explosion). The return value tells the hook how to
+	// finish the vanilla CRATE_UNIT case:
+	//   true  = "unit hand-off": *outFirstUnit is set to the member's first unit; the
+	//           engine's own creation makes THAT one unit (caller sets EDI). The rest
+	//           of the bag + SW + explosion were already applied here.
+	//   false = "self-contained": no unit handed off (the member has none, or its
+	//           first unit didn't resolve). Everything was applied here; the caller
+	//           must suppress the vanilla unit (jump to the no-unit exit).
+	// Uses the synced RNG only.
+	bool ApplyMember(const MemberConfig& m, CellClass* pCrateCell,
 		HouseClass* pHouse, UnitTypeClass** outFirstUnit);
 }

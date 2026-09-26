@@ -1,6 +1,6 @@
 // CrateGood — parse [CrateGood.Ext_N] members + [CrateGoodExt] globals, pick a
-// member with the game's synced RNG, and (M2) apply a Unit-category member by
-// spawning its bag. See docs/DESIGN.md.
+// member with the game's synced RNG, and apply its payload (units + infantry +
+// superweapons + explosion). See docs/DESIGN.md.
 #include "CrateGood.h"
 #include "Ini.h"
 #include "Log.h"
@@ -12,6 +12,11 @@
 #include <InfantryTypeClass.h>
 #include <CellClass.h>
 #include <HouseClass.h>
+#include <SuperWeaponTypeClass.h>
+#include <SuperClass.h>
+#include <WarheadTypeClass.h>
+#include <RulesClass.h>
+#include <MapClass.h>
 
 #include <cstdio>
 #include <cstring>
@@ -191,33 +196,23 @@ namespace CrateGoodExt
 		return nullptr;
 	}
 
-	bool ApplyUnitMember(const MemberConfig& m, CellClass* pCrateCell,
-		HouseClass* pHouse, UnitTypeClass** outFirstUnit)
+	// ---- payload application (M2 units + M3 infantry / SW / explosion) -----------
+
+	// Spawn the member's units + infantry at `base` for pHouse. When skipOneFirstUnit
+	// is set, one instance of the first unit type is omitted (the engine makes it).
+	static void SpawnBag(const MemberConfig& m, const CoordStruct& base, HouseClass* pHouse, bool skipOneFirstUnit)
 	{
-		if (outFirstUnit)
-			*outFirstUnit = nullptr;
-		if (m.unitTypes.empty() || !pCrateCell || !pHouse)
-			return false;
-
-		// The engine's own crate-unit creation makes ONE unit; give it our first
-		// type (via EDI at the call site). Rest of the bag we spawn ourselves.
-		UnitTypeClass* pFirst = UnitTypeClass::Find(m.unitTypes[0].c_str());
-		if (!pFirst)
-			return false;   // unresolved -> let the engine's own pick proceed
-		if (outFirstUnit)
-			*outFirstUnit = pFirst;
-
-		std::vector<TechnoTypeClass*> rest;
+		std::vector<TechnoTypeClass*> bag;
 		for (size_t i = 0; i < m.unitTypes.size(); ++i)
 		{
 			int count = (i < m.unitCounts.size()) ? m.unitCounts[i] : 1;
-			if (i == 0)
-				--count;   // the engine creates one unit[0]
+			if (i == 0 && skipOneFirstUnit)
+				--count;
 			if (count <= 0)
 				continue;
 			if (UnitTypeClass* pU = UnitTypeClass::Find(m.unitTypes[i].c_str()))
 				for (int k = 0; k < count; ++k)
-					rest.push_back(pU);
+					bag.push_back(pU);
 		}
 		for (size_t i = 0; i < m.infantryTypes.size(); ++i)
 		{
@@ -226,13 +221,66 @@ namespace CrateGoodExt
 				continue;
 			if (InfantryTypeClass* pI = InfantryTypeClass::Find(m.infantryTypes[i].c_str()))
 				for (int k = 0; k < count; ++k)
-					rest.push_back(pI);
+					bag.push_back(pI);
 		}
+		if (!bag.empty())
+			Spawn::PlaceListAt(bag, pHouse, base, 2);
+	}
+
+	// Grant each named superweapon to pHouse as a one-time charge (the missile-crate
+	// mechanism): Grant(oneTime=true, announce=true, onHold=false).
+	static void GrantSuperWeapons(const MemberConfig& m, HouseClass* pHouse)
+	{
+		for (const std::string& id : m.superWeapons)
+		{
+			SuperWeaponTypeClass* pSWType = SuperWeaponTypeClass::Find(id.c_str());
+			if (!pSWType)
+				continue;
+			if (SuperClass* pSuper = pHouse->FindSuperWeapon(pSWType))
+				pSuper->Grant(true, true, false);
+		}
+	}
+
+	// Explosion addon: area damage at the crate cell (defaults to C4Warhead).
+	static void Detonate(const MemberConfig& m, const CoordStruct& base, HouseClass* pHouse)
+	{
+		if (!m.explosion)
+			return;
+		WarheadTypeClass* pWH = m.explosionWarhead.empty()
+			? nullptr : WarheadTypeClass::Find(m.explosionWarhead.c_str());
+		if (!pWH)
+			pWH = RulesClass::Instance->C4Warhead;   // vanilla explosion-crate default
+		if (!pWH)
+			return;                                  // no warhead at all -> skip safely
+		MapClass::DamageArea(base, m.explosionDamage, nullptr, pWH, true, pHouse);
+	}
+
+	bool ApplyMember(const MemberConfig& m, CellClass* pCrateCell,
+		HouseClass* pHouse, UnitTypeClass** outFirstUnit)
+	{
+		if (outFirstUnit)
+			*outFirstUnit = nullptr;
+		if (!pCrateCell || !pHouse)
+			return false;
 
 		const CoordStruct base = pCrateCell->GetCoordsWithBridge();
-		const int placed = Spawn::PlaceListAt(rest, pHouse, base, 2);
-		Log("[CrateGoodExt] Ext_%d fired: engine makes %s + %d/%d extra spawned at (%d,%d).",
-			m.index, m.unitTypes[0].c_str(), placed, (int)rest.size(), base.X, base.Y);
-		return true;
+
+		// Hand off the first unit to the engine's own creation only if it resolves.
+		UnitTypeClass* pFirst = m.HasUnits() ? UnitTypeClass::Find(m.unitTypes[0].c_str()) : nullptr;
+		const bool handoff = (pFirst != nullptr);
+
+		SpawnBag(m, base, pHouse, /*skipOneFirstUnit=*/handoff);
+		GrantSuperWeapons(m, pHouse);
+		Detonate(m, base, pHouse);
+
+		if (handoff && outFirstUnit)
+			*outFirstUnit = pFirst;
+
+		Log("[CrateGoodExt] Ext_%d fired (%s): units=%d infantry=%d sw=%d explosion=%d at (%d,%d).",
+			m.index, handoff ? "unit-handoff" : "self-contained",
+			(int)m.unitTypes.size(), (int)m.infantryTypes.size(),
+			(int)m.superWeapons.size(), m.explosion ? 1 : 0, base.X, base.Y);
+
+		return handoff;
 	}
 }
