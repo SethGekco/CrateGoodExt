@@ -1,12 +1,17 @@
-// CrateGood — parse [CrateGood.Ext_N] members + [CrateGoodExt] globals, and pick a
-// member with the game's synced RNG. No engine mutation here; the actual spawning
-// / SW grant / addon effects arrive in later milestones. See docs/DESIGN.md.
+// CrateGood — parse [CrateGood.Ext_N] members + [CrateGoodExt] globals, pick a
+// member with the game's synced RNG, and (M2) apply a Unit-category member by
+// spawning its bag. See docs/DESIGN.md.
 #include "CrateGood.h"
 #include "Ini.h"
 #include "Log.h"
+#include "Spawn.h"
 
 #include <CCINIClass.h>
 #include <ScenarioClass.h>
+#include <UnitTypeClass.h>
+#include <InfantryTypeClass.h>
+#include <CellClass.h>
+#include <HouseClass.h>
 
 #include <cstdio>
 #include <cstring>
@@ -184,5 +189,50 @@ namespace CrateGoodExt
 			roll -= m.weight;
 		}
 		return nullptr;
+	}
+
+	bool ApplyUnitMember(const MemberConfig& m, CellClass* pCrateCell,
+		HouseClass* pHouse, UnitTypeClass** outFirstUnit)
+	{
+		if (outFirstUnit)
+			*outFirstUnit = nullptr;
+		if (m.unitTypes.empty() || !pCrateCell || !pHouse)
+			return false;
+
+		// The engine's own crate-unit creation makes ONE unit; give it our first
+		// type (via EDI at the call site). Rest of the bag we spawn ourselves.
+		UnitTypeClass* pFirst = UnitTypeClass::Find(m.unitTypes[0].c_str());
+		if (!pFirst)
+			return false;   // unresolved -> let the engine's own pick proceed
+		if (outFirstUnit)
+			*outFirstUnit = pFirst;
+
+		std::vector<TechnoTypeClass*> rest;
+		for (size_t i = 0; i < m.unitTypes.size(); ++i)
+		{
+			int count = (i < m.unitCounts.size()) ? m.unitCounts[i] : 1;
+			if (i == 0)
+				--count;   // the engine creates one unit[0]
+			if (count <= 0)
+				continue;
+			if (UnitTypeClass* pU = UnitTypeClass::Find(m.unitTypes[i].c_str()))
+				for (int k = 0; k < count; ++k)
+					rest.push_back(pU);
+		}
+		for (size_t i = 0; i < m.infantryTypes.size(); ++i)
+		{
+			int count = (i < m.infantryCounts.size()) ? m.infantryCounts[i] : 1;
+			if (count <= 0)
+				continue;
+			if (InfantryTypeClass* pI = InfantryTypeClass::Find(m.infantryTypes[i].c_str()))
+				for (int k = 0; k < count; ++k)
+					rest.push_back(pI);
+		}
+
+		const CoordStruct base = pCrateCell->GetCoordsWithBridge();
+		const int placed = Spawn::PlaceListAt(rest, pHouse, base, 2);
+		Log("[CrateGoodExt] Ext_%d fired: engine makes %s + %d/%d extra spawned at (%d,%d).",
+			m.index, m.unitTypes[0].c_str(), placed, (int)rest.size(), base.X, base.Y);
+		return true;
 	}
 }

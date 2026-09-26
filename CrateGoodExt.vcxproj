@@ -17,12 +17,14 @@
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Hooks.cpp" />
     <ClCompile Include="src\CrateGood.cpp" />
+    <ClCompile Include="src\Spawn.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Log.h" />
     <ClInclude Include="src\Ini.h" />
     <ClInclude Include="src\Serialize.h" />
     <ClInclude Include="src\CrateGood.h" />
+    <ClInclude Include="src\Spawn.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

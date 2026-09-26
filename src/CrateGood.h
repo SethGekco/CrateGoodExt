@@ -29,7 +29,10 @@
 #include <string>
 #include <vector>
 
-class CCINIClass;   // YRpp; handed to LoadRegistry by the rules-load hook
+class CCINIClass;    // YRpp; handed to LoadRegistry by the rules-load hook
+class CellClass;     // the crate's cell (spawn origin)
+class HouseClass;    // the collector's house
+class UnitTypeClass; // the member's first unit, handed to the engine's own creation
 
 namespace CrateGoodExt
 {
@@ -91,4 +94,12 @@ namespace CrateGoodExt
 	// "fall through to stock behavior". MUST use the game's network-synced RNG
 	// only (ScenarioClass random) — never rand() — or multiplayer desyncs.
 	const MemberConfig* PickMember(Category cat);
+
+	// M2: apply a Unit-category member that has >=1 unit. Resolves the member's
+	// first unit type into *outFirstUnit (hand to the engine's own single-unit
+	// creation via EDI) and spawns the REST of the bag (remaining units + all
+	// infantry) at pCrateCell for pHouse on the synced RNG. Returns false (and
+	// *outFirstUnit=nullptr) when the first unit type can't be resolved.
+	bool ApplyUnitMember(const MemberConfig& m, CellClass* pCrateCell,
+		HouseClass* pHouse, UnitTypeClass** outFirstUnit);
 }
