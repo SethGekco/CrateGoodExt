@@ -11,3 +11,6 @@ output
 .project
 /scripts/run_ion_shock.bat
 /scripts/run_yr.bat
+
+# Local test DLLs (CI builds these; never commit)
+*.dll
