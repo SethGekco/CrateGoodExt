@@ -26,7 +26,7 @@ Random-pick loop ~`0x482145`–`0x482210`:
 - No-unit → pay-money fallback path @ `0x4832F5`.
 - Crate-enabled/lottery bytes seen: `0xA8B258`, `0xA8B261` (`Unsorted::Crates`) [Y].
 
-**M2 plan:** intercept the `CRATE_UNIT` case entry → `CrateGoodExt::PickMember(Category::Unit)`. On a hit, spawn the member payload (units/infantry/SW/addon) and skip the vanilla single-unit creation; on `nullptr`, fall through to stock. Exact case-entry address + the register holding `this`(CellClass*) mid-function: **being pinned** (see objdump).
+**M2 hook (pinned, CI-compiled): `0x4821FA` (size 6)** — the choke point where the chosen unit type is in `EDI` (both the `UnitCrateType` `jne 0x4821FA` path and the random-`CrateGoodie` loop fall through here). `this`(CellClass*) = `ESI`; collector(FootClass*) = `[ebp+0x8]`; `[collector]->Owner` = house. Strategy: **EDI-override** — on a Unit-member hit, set `EDI` to our first unit (the engine's own create/place/`return false` runs unchanged) and self-spawn the rest of the bag; `nullptr` → stock. Overwritten instr `mov eax,[ebx+0x21c]` re-executes via `return 0`. Does not overlap Phobos's `0x4821BD`. v1 = unit-bearing members; infantry/SW/addon-only → M3 (clean suppression via the verified exit).
 
 ## Placement primitives (M4 chaining / M5 anim)
 
